@@ -1,7 +1,10 @@
 import numpy as np
 import subprocess
 import time
+import sys
+
 start_time = time.time()
+
 
 model = "TSM"
 num_in_param = 13
@@ -19,9 +22,18 @@ HS_output_path = "/home/etlar/m22_ashar/.Mathematica/Applications/SPheno-4.0.5/H
 
 
 def SearchGrid(n):
-    DataFile = open("DataFile", "w")
-    DataFile.writelines(f'{"Lambda1 / Mh(1)":<{30}} {"Lambda2 / Mh(2)":<{30}} {"Lambda3 / Mh(3)":<{30}} {"Lambda4 / Mhplus(1)":<{30}} {"Lambda5 / HBresult":<{30}} {"M12 / chi2(mu)":<{30}} {"TanBeta / chi2(H)":<{30}} \n')
-    DataFile.close()
+    DataFile_InParam = open("DataFile_InParam", "w")
+    DataFile_InParam.writelines(f'{"INPUT PARAMETERS / PATTERNS"} \n {"Lambda1":<{10}} {"Lambda2":<{10}} {"Lambda3":<{10}} {"Lambda4":<{10}} {"Lambda5":<{10}} {"Lambda6":<{10}} {"TanBeta":<{10}} \n')
+    DataFile_InParam.close()
+
+    DataFile_Labels = open("DataFile_Labels", "w")
+    DataFile_Labels.writelines(f'{"OUTPUT / LABELS"} \n {"T parameter":<{20}} {"S parameter":<{20}} {"U parameter":<{20}} {"HB Result":<{20}} {"HS chi^2()":<{20}} {"HS chi^2()":<{20}} \n')
+    DataFile_Labels.close()
+
+    DataFile_Masses = open("DataFile_Masses", "w")
+    DataFile_Masses.writelines(f'{"PARTICLE MASSES"} \n {"mH(1)":<{20}} {"mH(2)":<{20}} {"mH(3)":<{20}} \n')
+    DataFile_Masses.close()
+
 
     # Set input parameters
     lam4 = 0.10
@@ -65,14 +77,18 @@ def SearchGrid(n):
 
 
 
-#def Analysis(Lambda1Input,Lambda2Input,Lambda3Input,Lambda4Input,Lambda5Input,M12Input,TanBeta):
+
 def Analysis(in_param_list):
 
-    DataFile = open("DataFile", "a")
-    #DataFile.writelines(f'{Lambda1Input:<{20}} {Lambda2Input:<{20}} {Lambda3Input:<{20}} {Lambda4Input:<{20}} {Lambda5Input:<{20}} {M12Input:<{20}} {TanBeta:<{20}} \n')
+    if len(in_param_list) != num_in_param:
+        print("Number of free parameters does not match given input parameters. \nExiting code!")
+        sys.exit()
+
+    DataFile_InParam = open("DataFile_InParam", "a")
     for i in range(num_in_param):
-        DataFile.writelines(f'{in_param_list[i]:<{30}}')
-    DataFile.writelines('\n')
+        DataFile_InParam.writelines(f'{in_param_list[i]:<{13}}')
+    DataFile_InParam.writelines('\n')
+    DataFile_InParam.close()
 
 
                                 # === INPUT PARMETERS === #
@@ -94,12 +110,14 @@ def Analysis(in_param_list):
 #----------------------------------------------------------------------------------------
                                     # === RUN/READ PACKAGES ===#
     RunSPheno(model)
+    DataFile_Labels = open("DataFile_Labels", "a")
+
     try:
-        spheno_output = ReadSPheno()
+        spheno_output1, spheno_output2 = ReadSPheno()
     except:
         print("SPheno does not like these paramater choices, let's go to the next iteration!")
-        DataFile.writelines(f'{"Not valid point!":{30}} \n \n')
-        DataFile.close()
+        DataFile_Labels.writelines(f'{"Not valid point!":{30}} \n')
+        DataFile_Labels.close()
         return None
 
 
@@ -112,8 +130,17 @@ def Analysis(in_param_list):
 #---------------------------------------------------------------------------------------
 
                                     # === WRITE DATA FILE === #
-    DataFile.writelines(f'{spheno_output[0]:<{20}} {spheno_output[1]:<{20}} {spheno_output[2]:<{20}} {spheno_output[3]:<{20}} {higgsbounds_output:<{20}} {higgssignals_output[0]:<{20}} {higgssignals_output[1]:<{20}} \n \n')
-    DataFile.close()
+    for i in range(3):
+        DataFile_Labels.writelines(f'{spheno_output2[i]:<{20}}')
+    DataFile_Labels.writelines(f'{higgsbounds_output:<{20}} {higgssignals_output[0]:<{20}} {higgssignals_output[1]:<{20}} \n')
+    DataFile_Labels.close()
+
+    DataFile_Masses = open("DataFile_Masses", "a")
+    for i in range(4):
+        DataFile_Masses.writelines(f'{spheno_output1[i]:<{20}}')
+    DataFile_Masses.writelines('\n')
+    DataFile_Masses.close()
+
 
     return None
 
@@ -127,10 +154,15 @@ def RunSPheno(model):
 def ReadSPheno():
     OutputFile = open(SPheno_spc_path, "r")
     l = OutputFile.readlines()
-    index = [idx for idx, s in enumerate(l) if 'Block MASS' in s][0]
-    spheno_output = [l[index+i+2].split()[1] for i in range(4)] # May use list comprehenseion over for loop!
+
+    index1 = [idx for idx, s in enumerate(l) if 'Block MASS' in s][0]
+    spheno_output1 = [l[index1+i+2].split()[1] for i in range(4)] # May use list comprehenseion over for loop!
+
+    index2 = [idx for idx, s in enumerate(l) if 'Block SPhenoLowEnergy' in s][0]
+    spheno_output2 = [l[index2+1+i].split()[1] for i in range(3)] # May use list comprehenseion over for loop!
+
     OutputFile.close()
-    return spheno_output
+    return spheno_output1, spheno_output2
 
 
 def RunHiggsBounds():
@@ -160,5 +192,7 @@ def ReadHiggsSignals():
     return higgssignals_output
 
 
-print(SearchGrid(3))
+print(SearchGrid(2))
+
+
 print("The script took {} seconds to run".format(time.time()-start_time))
