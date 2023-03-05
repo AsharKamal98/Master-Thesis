@@ -8,6 +8,7 @@ import pandas as pd
 import subprocess
 import time
 import sys
+from tqdm import tqdm
 
 start_time = time.time()
 
@@ -16,15 +17,15 @@ model = "TSM"
 v = 246 # Fix! Read from LH
 num_in_param = 13  # Fix! Can be found from df
 num_free_param = 10  # Fix!
-exp_num_data_points = 8
+exp_num_data_points = 12
 num_data_points = 2**(exp_num_data_points)
 
 d = { \
     'Input parameter name': ['lam1','lam2','lam3','lam4','lam5','lam6','lam7','lam8','lam9','lam10','lam11','mT','mS','mH','mC','mN1','mN2'], \
     'LesHouches number': [1,2,3,4,5,6,7,8,9,10,11,12,13,None,None,None,None], \
-    'Range start' : [-0.05, -0.05, 0, 0, -0.1, -0.1, -0.05, None, None, -0.05, -0.05, None, None, 127, 100, 300, 300], \
-    'Range end' : [1.15, 0.29, 0, 0, 0.6, 1.15, 0.29, None, None, 0.29, 0.29, None, None, 127, 200, 400, 500], \
-    'Dependence' :[None, None, None, None, None, None, None, '(1/v**2) * 2**(3/2) * (mN1-mC)**(1/2) * (mN2-mC)**(1/2)', 'mH/(2*v**2)', None, None, '(1/4) * (2*mC - lam10*v**2)', '(1/2) * (mN1 + mN2 - mC - lam7*v**2)', None, None, None, None] \
+    'Range start' : [-1.15, -1.0, 0, 0, -1.6, -1.15, -0.5, None, None, -0.29, -0.29, None, None, 125.25, 3300, 2200, 4400], \
+    'Range end' : [1.15, 1.0, 0, 0, 1.6, 1.15, 0.5, None, None, 0.29, 0.29, None, None, 125.25, 3399, 2299, 4500], \
+    'Dependence' :[None, None, None, None, None, None, None, '(1/v**2) * 2**(3/2) * (mC-mN1)**(1/2) * (mN2-mC)**(1/2)', 'mH/(2*v**2)', None, None, '(1/4) * (2*mC - lam10*v**2)', '(1/2) * (mN1 + mN2 - mC - lam7*v**2)', None, None, None, None] \
     }
 df = pd.DataFrame(data=d)
 #print(df)
@@ -63,23 +64,24 @@ def SearchGrid(n):
     df_free1 = df[~df['Range start'].isna()]
     df_free2 = df_free1[df_free1['Range start'] != df_free1['Range end']]
 
-    num_data_points = 10
-    for i in range(num_data_points):
+    #num_data_points = 1
+    for i in tqdm(range(num_data_points)):
         subprocess.run(["rm", "-f", SPheno_spc_path])
 
         d = dict((df_free2['Input parameter name'].to_numpy()[j], input_samples[i,j]) for j in range(num_free_param))
         d['v'] = v
         d['lam3'] = 0
         d['lam4'] = 0
-        d['mH'] = 127
+        d['mH'] = float(df['Range start'][13])
 
         lam8 = eval(df['Dependence'][7], d)
         lam9 = eval(df['Dependence'][8], d)
         mT = eval(df['Dependence'][11], d)
         mS = eval(df['Dependence'][12], d)
         Analysis([input_samples[i,0], input_samples[i,1], 0, 0, input_samples[i,2], input_samples[i,3], input_samples[i,4], lam8, lam9, input_samples[i,5], input_samples[i,6], mT, mS])
-        #if i%20 == 0:
-        print("Finished {}/{} iterations".format(i+1, num_data_points))
+        #if i%100 == 0:
+        #print("Finished {}/{} iterations".format(i+1, num_data_points))
+        #print(input_samples[0,-3:])
 
 
     return "Done!"
@@ -111,7 +113,7 @@ def Analysis(in_param_list):
 
     # Define input parameters in LesHouches file
     for i in range(num_in_param):
-        l[MINPARindex+1+i] = " {}   {}     # {}\n".format(i, in_param_list[i], l[MINPARindex+1+i].split()[-1])
+        l[MINPARindex+1+i] = " {}   {}     # {}\n".format(i+1, in_param_list[i], l[MINPARindex+1+i].split()[-1])
 
     InputFile = open(LesHouches_path, "w")
     InputFile.writelines(l)
@@ -164,7 +166,7 @@ def Analysis(in_param_list):
 
 def RunSPheno(model):
     subprocess.run(["./bin/SPheno{}".format(model)], stdout=subprocess.DEVNULL)
-
+    #subprocess.run(["./bin/SPheno{}".format(model)])
     return None
 
 def ReadSPheno():
@@ -208,7 +210,7 @@ def ReadHiggsSignals():
     return higgssignals_output
 
 
-print(SearchGrid(8))
+print(SearchGrid(exp_num_data_points))
 
 
 #DataFile = open("DataFile_Labels", "r")
